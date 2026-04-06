@@ -100,6 +100,22 @@
   /* Auth */
   .auth-banner { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 150; background: var(--surface); border: 0.5px solid var(--border); border-radius: 100px; padding: 0.5rem 1.25rem; font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 0.75rem; }
   .auth-banner a { color: var(--gold); cursor: pointer; text-decoration: none; }
+
+  body.light {
+    --bg: #f5f0e8;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.08);
+    --text: #2a2520;
+    --muted: rgba(42,37,32,0.5);
+    --gold: #9a6f20;
+    --gold-dim: rgba(154,111,32,0.1);
+  }
+  body.light .birthday-panel,
+  body.light .detail-panel,
+  body.light .modal,
+  body.light .auth-banner { background: #ffffff; }
+  body.light .btn-toggle { background: #f0ebe0; }
+  body.light header { background: rgba(245,240,232,0.94); }
 </style>
 </head>
 <body>
@@ -115,9 +131,10 @@
     <span>Our Roots &amp; Branches</span>
   </div>
   <div class="header-controls">
-    <button class="btn-toggle active" id="btn-radial" onclick="setView('radial')">Radial</button>
-    <button class="btn-toggle" id="btn-tree" onclick="setView('tree')">Top-Down</button>
+    <button class="btn-toggle" id="btn-radial" onclick="setView('radial')">Radial</button>
+    <button class="btn-toggle active" id="btn-tree" onclick="setView('tree')">Top-Down</button>
     <button class="btn-add" onclick="showAddModal()">+ Add Person</button>
+    <button class="btn-toggle" id="btn-theme" onclick="toggleTheme()" title="Toggle light/dark mode">🌙</button>
   </div>
 </header>
 
@@ -203,7 +220,7 @@ const SUPABASE_URL = 'https://bzfjdngbjpjrrrpvlytl.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6ZmpkbmdianBqcnJycHZseXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MzkxOTcsImV4cCI6MjA5MTAxNTE5N30.2w9HqvH8e24vekayNS1JStUIMRrxwh25yjw5zoJy-OI';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let currentView = 'radial';
+let currentView = 'tree';
 let allPeople = [];
 let simulation;
 
@@ -580,6 +597,19 @@ async function savePerson() {
 
   // Clear form
   ['f-name','f-rel','f-bday','f-notes'].forEach(id => document.getElementById(id).value = '');
+}
+
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  document.getElementById('btn-theme').textContent = isLight ? '🌙' : '☀️';
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+}
+
+// Load saved theme
+if (localStorage.getItem('theme') === 'light') {
+  document.body.classList.add('light');
+  document.getElementById('btn-theme').textContent = '🌙';
 }
 
 window.addEventListener('resize', renderTree);
