@@ -6,7 +6,7 @@
 <title>Bettadapura Thangli Family Tree</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
 <style>
   :root {
     --bg: #0f0e0c;
@@ -200,7 +200,7 @@
 
 <script>
 const SUPABASE_URL = 'https://bzfjdngbjpjrrrpvlytl.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_UBko2P2KldK91I2B56vCfw_EifoCzgl';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6ZmpkbmdianBqcnJycHZseXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MzkxOTcsImV4cCI6MjA5MTAxNTE5N30.2w9HqvH8e24vekayNS1JStUIMRrxwh25yjw5zoJy-OI';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentView = 'radial';
