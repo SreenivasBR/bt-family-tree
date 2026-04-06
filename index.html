@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bettadapura Thangli Family Tree</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0f0e0c;
+    --surface: #1a1814;
+    --border: rgba(255,255,255,0.07);
+    --text: #e8e2d6;
+    --muted: rgba(232,226,214,0.45);
+    --gold: #c9a84c;
+    --gold-dim: rgba(201,168,76,0.15);
+    --bettadapura: #e6a84c;
+    --thangli: #e05c6e;
+    --banerjee: #7eb8d4;
+    --self: #a78bfa;
+    --node-size: 11px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; height: 100vh; overflow: hidden; }
+
+  /* Header */
+  header { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; background: rgba(15,14,12,0.92); backdrop-filter: blur(12px); border-bottom: 0.5px solid var(--border); }
+  .header-title { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 300; color: var(--gold); letter-spacing: 0.05em; }
+  .header-title span { color: var(--muted); font-size: 0.9rem; display: block; font-family: 'DM Sans', sans-serif; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 300; }
+  .header-controls { display: flex; align-items: center; gap: 0.75rem; }
+  .btn-toggle { background: var(--surface); border: 0.5px solid var(--border); color: var(--muted); padding: 0.45rem 1rem; border-radius: 100px; font-size: 0.78rem; cursor: pointer; transition: all 0.2s; font-family: 'DM Sans', sans-serif; letter-spacing: 0.05em; }
+  .btn-toggle.active, .btn-toggle:hover { border-color: var(--gold); color: var(--gold); background: var(--gold-dim); }
+  .btn-add { background: var(--gold); color: #0f0e0c; border: none; padding: 0.45rem 1.1rem; border-radius: 100px; font-size: 0.78rem; cursor: pointer; font-weight: 500; font-family: 'DM Sans', sans-serif; transition: all 0.2s; }
+  .btn-add:hover { background: #d4b060; }
+
+  /* Legend */
+  .legend { position: fixed; bottom: 1.5rem; left: 1.5rem; z-index: 100; display: flex; flex-direction: column; gap: 0.5rem; }
+  .legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Birthday panel */
+  .birthday-panel { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 100; background: var(--surface); border: 0.5px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; min-width: 200px; }
+  .birthday-panel h3 { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.75rem; }
+  .bday-item { font-size: 0.82rem; color: var(--muted); padding: 0.3rem 0; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; gap: 1rem; }
+  .bday-item:last-child { border-bottom: none; }
+  .bday-days { color: var(--gold); font-weight: 500; font-size: 0.78rem; }
+
+  /* Canvas */
+  #tree-container { width: 100vw; height: 100vh; padding-top: 60px; }
+  svg { width: 100%; height: 100%; cursor: grab; }
+  svg:active { cursor: grabbing; }
+
+  /* Nodes */
+  .node circle { stroke-width: 2; transition: r 0.2s; cursor: pointer; }
+  .node:hover circle { r: 14; }
+  .node text { font-family: 'DM Sans', sans-serif; font-size: 11px; fill: var(--text); pointer-events: none; }
+  .node .role { font-size: 9.5px; fill: var(--muted); }
+  .link { fill: none; stroke-width: 1.2; opacity: 0.35; }
+
+  /* Detail panel */
+  .detail-panel { position: fixed; top: 50%; right: 1.5rem; transform: translateY(-50%); z-index: 200; background: var(--surface); border: 0.5px solid var(--border); border-radius: 16px; padding: 1.75rem; width: 260px; display: none; }
+  .detail-panel.show { display: block; animation: slideIn 0.25s ease; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-50%) translateX(10px); } to { opacity: 1; transform: translateY(-50%) translateX(0); } }
+  .detail-close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.1rem; line-height: 1; }
+  .detail-close:hover { color: var(--text); }
+  .detail-avatar { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; font-weight: 300; margin-bottom: 1rem; }
+  .detail-name { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; font-weight: 400; color: var(--text); margin-bottom: 0.25rem; line-height: 1.2; }
+  .detail-rel { font-size: 0.78rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1.25rem; }
+  .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 0.5px solid var(--border); font-size: 0.84rem; }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-label { color: var(--muted); font-size: 0.75rem; }
+  .detail-value { color: var(--text); }
+  .detail-side-badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 1rem; }
+
+  /* Modal for add person */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 300; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--surface); border: 0.5px solid var(--border); border-radius: 20px; padding: 2rem; width: 340px; }
+  .modal h2 { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; font-weight: 400; margin-bottom: 1.5rem; color: var(--gold); }
+  .form-group { margin-bottom: 1rem; }
+  .form-group label { display: block; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.4rem; }
+  .form-group input, .form-group select { width: 100%; background: rgba(255,255,255,0.04); border: 0.5px solid var(--border); border-radius: 8px; padding: 0.6rem 0.9rem; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 0.88rem; outline: none; transition: border-color 0.2s; }
+  .form-group input:focus, .form-group select:focus { border-color: var(--gold); }
+  .form-group select option { background: #1a1814; }
+  .modal-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+  .btn-save { flex: 1; background: var(--gold); color: #0f0e0c; border: none; padding: 0.65rem; border-radius: 8px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+  .btn-cancel { flex: 1; background: transparent; color: var(--muted); border: 0.5px solid var(--border); padding: 0.65rem; border-radius: 8px; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+
+  /* Loading */
+  .loading { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 500; gap: 1rem; }
+  .loading h1 { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 300; color: var(--gold); }
+  .loading p { color: var(--muted); font-size: 0.88rem; }
+  .loading-dots span { animation: blink 1.4s infinite; display: inline-block; }
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+
+  /* Auth */
+  .auth-banner { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 150; background: var(--surface); border: 0.5px solid var(--border); border-radius: 100px; padding: 0.5rem 1.25rem; font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 0.75rem; }
+  .auth-banner a { color: var(--gold); cursor: pointer; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <h1>Bettadapura Thangli</h1>
+  <p>Loading your family tree<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></p>
+</div>
+
+<header>
+  <div class="header-title">
+    Bettadapura Thangli Family Tree
+    <span>Our Roots &amp; Branches</span>
+  </div>
+  <div class="header-controls">
+    <button class="btn-toggle active" id="btn-radial" onclick="setView('radial')">Radial</button>
+    <button class="btn-toggle" id="btn-tree" onclick="setView('tree')">Top-Down</button>
+    <button class="btn-add" onclick="showAddModal()">+ Add Person</button>
+  </div>
+</header>
+
+<div class="auth-banner" id="auth-banner">
+  <span>👁 Viewing as guest</span>
+  <a onclick="showLoginModal()">Sign in to edit</a>
+</div>
+
+<div id="tree-container">
+  <svg id="tree-svg">
+    <g id="zoom-group">
+      <g id="links-group"></g>
+      <g id="nodes-group"></g>
+    </g>
+  </svg>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--bettadapura)"></div>Bettadapura side</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--thangli)"></div>Thangli side</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--banerjee)"></div>Banerjee side</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--self)"></div>You</div>
+</div>
+
+<div class="birthday-panel" id="birthday-panel">
+  <h3>🎂 Upcoming Birthdays</h3>
+  <div id="birthday-list"><div style="color:var(--muted);font-size:0.82rem;">Add birthdays to see them here</div></div>
+</div>
+
+<!-- Detail Panel -->
+<div class="detail-panel" id="detail-panel">
+  <button class="detail-close" onclick="closeDetail()">✕</button>
+  <div class="detail-avatar" id="detail-avatar"></div>
+  <div class="detail-name" id="detail-name"></div>
+  <div class="detail-rel" id="detail-rel"></div>
+  <div class="detail-row"><span class="detail-label">Birthday</span><span class="detail-value" id="detail-bday">—</span></div>
+  <div class="detail-row"><span class="detail-label">Family side</span><span class="detail-value" id="detail-side">—</span></div>
+  <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" id="detail-notes">—</span></div>
+</div>
+
+<!-- Add Person Modal -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <h2>Add Family Member</h2>
+    <div class="form-group">
+      <label>Full Name</label>
+      <input type="text" id="f-name" placeholder="e.g. Sreenivas Raman">
+    </div>
+    <div class="form-group">
+      <label>Relationship</label>
+      <input type="text" id="f-rel" placeholder="e.g. Son, Daughter, Wife">
+    </div>
+    <div class="form-group">
+      <label>Birthday</label>
+      <input type="date" id="f-bday">
+    </div>
+    <div class="form-group">
+      <label>Family Side</label>
+      <select id="f-side">
+        <option value="bettadapura">Bettadapura</option>
+        <option value="thangli">Thangli</option>
+        <option value="banerjee">Banerjee</option>
+        <option value="both">Both / Core</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Parent (connect to)</label>
+      <select id="f-parent"><option value="">— Root / Top Level —</option></select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input type="text" id="f-notes" placeholder="e.g. Lives in Bangalore">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="hideAddModal()">Cancel</button>
+      <button class="btn-save" onclick="savePerson()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://bzfjdngbjpjrrrpvlytl.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_UBko2P2KldK91I2B56vCfw_EifoCzgl';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentView = 'radial';
+let allPeople = [];
+let simulation;
+
+// Seed data from MindNode screenshots
+const SEED_DATA = [
+  // Core root
+  { name: 'Raman Bettadapura Venkataramaiah', relationship: 'Father', side: 'bettadapura', notes: 'Patriarch' },
+  { name: 'Saroja Thangli Venkatarao', relationship: 'Mother', side: 'thangli', notes: 'Matriarch' },
+  // Children
+  { name: 'Srikanta', relationship: 'Son 1', side: 'bettadapura' },
+  { name: 'Geetha Raman', relationship: 'Dau 2', side: 'bettadapura' },
+  { name: 'Sreenivas Raman', relationship: 'Son', side: 'both', notes: 'That\'s me! 🦾' },
+  // Sreenivas family
+  { name: 'Anwesha Banerjee', relationship: 'Wife (LOML)', side: 'banerjee' },
+  { name: 'Rocky', relationship: 'Our Pet 🐾', side: 'both' },
+  { name: 'Mia', relationship: 'Our Pet 🐾', side: 'both' },
+  // Banerjee side
+  { name: 'Amithabho Banerjee', relationship: 'Father-in-law', side: 'banerjee' },
+  { name: 'Sadhana', relationship: 'Mother-in-law', side: 'banerjee' },
+  { name: 'Aditi', relationship: 'Sister-in-law', side: 'banerjee' },
+  { name: 'Diganto', relationship: 'Brother-in-law', side: 'banerjee' },
+  // Geetha family
+  { name: 'Arun Kumar', relationship: 'Husband', side: 'bettadapura' },
+  { name: 'Saraswathi', relationship: 'Mother', side: 'bettadapura' },
+  { name: 'Ankith', relationship: 'Son 1', side: 'bettadapura' },
+  { name: 'Namith', relationship: 'Son 2', side: 'bettadapura' },
+  // Srikanta family
+  { name: 'Anuradha', relationship: 'Dau 2', side: 'bettadapura' },
+  { name: 'Lakshmi (Putti)', relationship: 'Dau 1', side: 'bettadapura' },
+  { name: 'Leelavathi', relationship: 'Dau 1, 2nd', side: 'bettadapura' },
+  // Father's side - siblings
+  { name: 'Kitta', relationship: 'Son 2', side: 'bettadapura' },
+  { name: 'Sathya', relationship: 'Sibling', side: 'bettadapura' },
+  { name: 'Janardhan', relationship: 'Son', side: 'bettadapura' },
+  // Mother's side
+  { name: 'Srinivas Murthy', relationship: 'Son 1, 1st', side: 'thangli' },
+  { name: 'Shardha', relationship: 'Dau 1, 2nd', side: 'thangli' },
+  { name: 'Nagaraj', relationship: 'Son 2, 4th', side: 'thangli' },
+  { name: 'Manjuneth', relationship: 'Son 3, 5th', side: 'thangli' },
+  { name: 'Madhavi (Madhu)', relationship: 'Dau 1', side: 'bettadapura' },
+];
+
+async function init() {
+  // Check if DB has data
+  const { data, error } = await supabase.from('people').select('*');
+  if (error) { console.error(error); }
+
+  if (!data || data.length === 0) {
+    // Seed the database
+    await seedDatabase();
+    const { data: seeded } = await supabase.from('people').select('*');
+    allPeople = seeded || [];
+  } else {
+    allPeople = data;
+  }
+
+  populateParentDropdown();
+  renderTree();
+  renderBirthdays();
+  document.getElementById('loading').style.display = 'none';
+}
+
+async function seedDatabase() {
+  // Insert root first
+  const { data: root } = await supabase.from('people').insert([
+    { name: 'Raman Bettadapura Venkataramaiah', relationship: 'Father', side: 'bettadapura', notes: 'Patriarch — Father of Sreenivas' },
+    { name: 'Saroja Thangli Venkatarao', relationship: 'Mother', side: 'thangli', notes: 'Matriarch — Mother of Sreenivas' },
+  ]).select();
+
+  if (!root) return;
+  const fatherId = root[0].id;
+  const motherId = root[1].id;
+
+  // Core children
+  const { data: children } = await supabase.from('people').insert([
+    { name: 'Srikanta', relationship: 'Son 1', side: 'bettadapura', parent_id: fatherId },
+    { name: 'Madhavi (Madhu)', relationship: 'Dau 1', side: 'bettadapura', parent_id: fatherId },
+    { name: 'Geetha Raman', relationship: 'Dau 2', side: 'bettadapura', parent_id: fatherId },
+    { name: 'Sreenivas Raman', relationship: 'Son', side: 'both', parent_id: fatherId, notes: "That's me! 🦾" },
+  ]).select();
+
+  if (!children) return;
+  const sreenivasId = children[3].id;
+  const geethaId = children[2].id;
+  const madhavid = children[1].id;
+
+  // Sreenivas family
+  const { data: srFamily } = await supabase.from('people').insert([
+    { name: 'Anwesha Banerjee', relationship: 'Wife (LOML)', side: 'banerjee', parent_id: sreenivasId },
+    { name: 'Rocky', relationship: 'Our Pet 🐾', side: 'both', parent_id: sreenivasId },
+    { name: 'Mia', relationship: 'Our Pet 🐾', side: 'both', parent_id: sreenivasId },
+  ]).select();
+
+  if (srFamily) {
+    const anweshaId = srFamily[0].id;
+    // Banerjee side
+    const { data: banerjees } = await supabase.from('people').insert([
+      { name: 'Amithabho Banerjee', relationship: 'Father-in-law', side: 'banerjee', parent_id: anweshaId },
+      { name: 'Sadhana', relationship: 'Mother-in-law', side: 'banerjee', parent_id: anweshaId },
+    ]).select();
+    if (banerjees) {
+      await supabase.from('people').insert([
+        { name: 'Aditi', relationship: 'Sister-in-law', side: 'banerjee', parent_id: banerjees[0].id },
+        { name: 'Diganto', relationship: 'Nephew', side: 'banerjee', parent_id: banerjees[0].id },
+      ]);
+    }
+  }
+
+  // Geetha family
+  const { data: gFamily } = await supabase.from('people').insert([
+    { name: 'Arun Kumar', relationship: 'Husband', side: 'bettadapura', parent_id: geethaId },
+  ]).select();
+  if (gFamily) {
+    await supabase.from('people').insert([
+      { name: 'Ankith', relationship: 'Son 1', side: 'bettadapura', parent_id: gFamily[0].id },
+      { name: 'Namith', relationship: 'Son 2', side: 'bettadapura', parent_id: gFamily[0].id },
+    ]);
+  }
+
+  // Madhavi family
+  const { data: mFamily } = await supabase.from('people').insert([
+    { name: 'Akash', relationship: 'Son 1', side: 'bettadapura', parent_id: madhavid },
+    { name: 'Shamitha', relationship: 'Dau 1', side: 'bettadapura', parent_id: madhavid },
+  ]).select();
+
+  // Mother's siblings
+  await supabase.from('people').insert([
+    { name: 'Srinivas Murthy', relationship: 'Son 1, 1st', side: 'thangli', parent_id: motherId },
+    { name: 'Shardha', relationship: 'Dau 1, 2nd', side: 'thangli', parent_id: motherId },
+    { name: 'Nagaraj', relationship: 'Son 2, 4th', side: 'thangli', parent_id: motherId },
+    { name: 'Manjuneth', relationship: 'Son 3, 5th', side: 'thangli', parent_id: motherId },
+    { name: 'Lalitha', relationship: 'Dau 3, 5th', side: 'thangli', parent_id: motherId },
+  ]);
+
+  // Father's siblings
+  await supabase.from('people').insert([
+    { name: 'Kitta', relationship: 'Son 2', side: 'bettadapura', parent_id: fatherId },
+    { name: 'Sathya', relationship: 'Sibling', side: 'bettadapura', parent_id: fatherId },
+    { name: 'Janardhan', relationship: 'Son', side: 'bettadapura', parent_id: fatherId },
+  ]);
+}
+
+function getColor(side) {
+  const colors = { bettadapura: '#e6a84c', thangli: '#e05c6e', banerjee: '#7eb8d4', both: '#a78bfa' };
+  return colors[side] || '#888';
+}
+
+function getInitials(name) {
+  return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+}
+
+function buildHierarchy() {
+  const map = {};
+  allPeople.forEach(p => map[p.id] = { ...p, children: [] });
+
+  const roots = [];
+  allPeople.forEach(p => {
+    if (p.parent_id && map[p.parent_id]) {
+      map[p.parent_id].children.push(map[p.id]);
+    } else if (!p.parent_id) {
+      roots.push(map[p.id]);
+    }
+  });
+
+  if (roots.length === 0) return null;
+  if (roots.length === 1) return roots[0];
+  return { id: 'virtual-root', name: 'Family', relationship: '', side: 'both', children: roots };
+}
+
+function renderTree() {
+  const svg = d3.select('#tree-svg');
+  const w = svg.node().clientWidth || window.innerWidth;
+  const h = svg.node().clientHeight || window.innerHeight - 60;
+
+  const zoomGroup = d3.select('#zoom-group');
+  const linksGroup = d3.select('#links-group');
+  const nodesGroup = d3.select('#nodes-group');
+
+  linksGroup.selectAll('*').remove();
+  nodesGroup.selectAll('*').remove();
+
+  const root = buildHierarchy();
+  if (!root) return;
+
+  const zoom = d3.zoom().scaleExtent([0.2, 3]).on('zoom', e => zoomGroup.attr('transform', e.transform));
+  svg.call(zoom);
+
+  if (currentView === 'radial') {
+    renderRadial(root, w, h, linksGroup, nodesGroup, zoom, svg);
+  } else {
+    renderTopDown(root, w, h, linksGroup, nodesGroup, zoom, svg);
+  }
+}
+
+function renderRadial(root, w, h, linksGroup, nodesGroup, zoom, svg) {
+  const radius = Math.min(w, h) * 0.42;
+  const tree = d3.tree().size([2 * Math.PI, radius]).separation((a, b) => (a.parent === b.parent ? 1 : 2) / a.depth);
+  const hier = d3.hierarchy(root);
+  tree(hier);
+
+  svg.call(zoom.transform, d3.zoomIdentity.translate(w / 2, h / 2));
+
+  const linkGen = d3.linkRadial().angle(d => d.x).radius(d => d.y);
+
+  linksGroup.selectAll('path').data(hier.links()).join('path')
+    .attr('class', 'link')
+    .attr('d', linkGen)
+    .attr('stroke', d => getColor(d.target.data.side))
+    .attr('stroke-width', 1.2);
+
+  const node = nodesGroup.selectAll('g').data(hier.descendants()).join('g')
+    .attr('class', 'node')
+    .attr('transform', d => `rotate(${d.x * 180 / Math.PI - 90}) translate(${d.y}, 0)`)
+    .on('click', (e, d) => showDetail(d.data));
+
+  node.append('circle')
+    .attr('r', d => d.data.name === 'Sreenivas Raman' ? 14 : 10)
+    .attr('fill', d => getColor(d.data.side))
+    .attr('fill-opacity', d => d.data.name === 'Sreenivas Raman' ? 1 : 0.75)
+    .attr('stroke', d => getColor(d.data.side))
+    .attr('stroke-opacity', 0.4);
+
+  node.append('text')
+    .attr('dy', '0.31em')
+    .attr('x', d => d.x < Math.PI === !d.children ? 16 : -16)
+    .attr('text-anchor', d => d.x < Math.PI === !d.children ? 'start' : 'end')
+    .attr('transform', d => d.x >= Math.PI ? 'rotate(180)' : null)
+    .text(d => d.data.name === 'virtual-root' ? '' : d.data.name.split(' ')[0])
+    .attr('font-size', '11px')
+    .attr('fill', '#e8e2d6');
+}
+
+function renderTopDown(root, w, h, linksGroup, nodesGroup, zoom, svg) {
+  const treeLayout = d3.tree().nodeSize([120, 90]);
+  const hier = d3.hierarchy(root);
+  treeLayout(hier);
+
+  let minX = Infinity, maxX = -Infinity;
+  hier.each(d => { if (d.x < minX) minX = d.x; if (d.x > maxX) maxX = d.x; });
+  const treeW = maxX - minX;
+
+  svg.call(zoom.transform, d3.zoomIdentity.translate(w / 2 - treeW / 2 - minX, 80).scale(0.7));
+
+  linksGroup.selectAll('path').data(hier.links()).join('path')
+    .attr('class', 'link')
+    .attr('d', d => `M${d.source.x},${d.source.y} C${d.source.x},${(d.source.y + d.target.y) / 2} ${d.target.x},${(d.source.y + d.target.y) / 2} ${d.target.x},${d.target.y}`)
+    .attr('stroke', d => getColor(d.target.data.side))
+    .attr('stroke-width', 1.2);
+
+  const node = nodesGroup.selectAll('g').data(hier.descendants()).join('g')
+    .attr('class', 'node')
+    .attr('transform', d => `translate(${d.x},${d.y})`)
+    .on('click', (e, d) => showDetail(d.data));
+
+  node.append('circle')
+    .attr('r', d => d.data.name === 'Sreenivas Raman' ? 14 : 10)
+    .attr('fill', d => getColor(d.data.side))
+    .attr('fill-opacity', d => d.data.name === 'Sreenivas Raman' ? 1 : 0.75)
+    .attr('stroke', d => getColor(d.data.side))
+    .attr('stroke-opacity', 0.4);
+
+  node.append('text')
+    .attr('dy', 26)
+    .attr('text-anchor', 'middle')
+    .text(d => d.data.name === 'virtual-root' ? '' : d.data.name.split(' ')[0])
+    .attr('font-size', '11px')
+    .attr('fill', '#e8e2d6');
+
+  node.append('text')
+    .attr('dy', 38)
+    .attr('text-anchor', 'middle')
+    .attr('class', 'role')
+    .text(d => d.data.relationship || '')
+    .attr('font-size', '9px')
+    .attr('fill', 'rgba(232,226,214,0.45)');
+}
+
+function setView(view) {
+  currentView = view;
+  document.getElementById('btn-radial').classList.toggle('active', view === 'radial');
+  document.getElementById('btn-tree').classList.toggle('active', view === 'tree');
+  renderTree();
+}
+
+function showDetail(person) {
+  if (!person || person.id === 'virtual-root') return;
+  const color = getColor(person.side);
+  const panel = document.getElementById('detail-panel');
+
+  document.getElementById('detail-avatar').style.background = color + '22';
+  document.getElementById('detail-avatar').style.border = `1.5px solid ${color}44`;
+  document.getElementById('detail-avatar').style.color = color;
+  document.getElementById('detail-avatar').textContent = getInitials(person.name);
+
+  document.getElementById('detail-name').textContent = person.name;
+  document.getElementById('detail-rel').textContent = person.relationship || '';
+
+  const bday = person.birthday ? new Date(person.birthday).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
+  document.getElementById('detail-bday').textContent = bday;
+
+  const sides = { bettadapura: 'Bettadapura', thangli: 'Thangli', banerjee: 'Banerjee', both: 'Both / Core' };
+  document.getElementById('detail-side').textContent = sides[person.side] || person.side || '—';
+  document.getElementById('detail-notes').textContent = person.notes || '—';
+
+  panel.classList.add('show');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('show');
+}
+
+function renderBirthdays() {
+  const today = new Date();
+  const upcoming = allPeople
+    .filter(p => p.birthday)
+    .map(p => {
+      const bday = new Date(p.birthday);
+      const next = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+      if (next < today) next.setFullYear(today.getFullYear() + 1);
+      const days = Math.ceil((next - today) / (1000 * 60 * 60 * 24));
+      return { ...p, daysUntil: days, nextBday: next };
+    })
+    .sort((a, b) => a.daysUntil - b.daysUntil)
+    .slice(0, 5);
+
+  const list = document.getElementById('birthday-list');
+  if (upcoming.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;">Add birthdays to see them here</div>';
+    return;
+  }
+  list.innerHTML = upcoming.map(p => `
+    <div class="bday-item">
+      <span>${p.name.split(' ')[0]}</span>
+      <span class="bday-days">${p.daysUntil === 0 ? '🎉 Today!' : `${p.daysUntil}d`}</span>
+    </div>
+  `).join('');
+}
+
+function populateParentDropdown() {
+  const sel = document.getElementById('f-parent');
+  sel.innerHTML = '<option value="">— Root / Top Level —</option>';
+  allPeople.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.name} (${p.relationship || 'no role'})`;
+    sel.appendChild(opt);
+  });
+}
+
+function showAddModal() { document.getElementById('add-modal').classList.add('show'); }
+function hideAddModal() { document.getElementById('add-modal').classList.remove('show'); }
+
+async function savePerson() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { alert('Please enter a name'); return; }
+
+  const person = {
+    name,
+    relationship: document.getElementById('f-rel').value.trim(),
+    birthday: document.getElementById('f-bday').value || null,
+    side: document.getElementById('f-side').value,
+    parent_id: document.getElementById('f-parent').value || null,
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+
+  const { data, error } = await supabase.from('people').insert([person]).select();
+  if (error) { alert('Error saving: ' + error.message); return; }
+
+  allPeople.push(data[0]);
+  populateParentDropdown();
+  renderTree();
+  renderBirthdays();
+  hideAddModal();
+
+  // Clear form
+  ['f-name','f-rel','f-bday','f-notes'].forEach(id => document.getElementById(id).value = '');
+}
+
+window.addEventListener('resize', renderTree);
+init();
+</script>
+</body>
+</html>
