@@ -170,8 +170,10 @@
   <div class="detail-avatar" id="detail-avatar"></div>
   <div class="detail-name" id="detail-name"></div>
   <div class="detail-rel" id="detail-rel"></div>
+  <div class="detail-row"><span class="detail-label">Nickname</span><span class="detail-value" id="detail-nick">—</span></div>
   <div class="detail-row"><span class="detail-label">Birthday</span><span class="detail-value" id="detail-bday">—</span></div>
   <div class="detail-row"><span class="detail-label">Family side</span><span class="detail-value" id="detail-side">—</span></div>
+  <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value" id="detail-alive">—</span></div>
   <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" id="detail-notes">—</span></div>
 </div>
 
@@ -186,6 +188,10 @@
     <div class="form-group">
       <label>Relationship</label>
       <input type="text" id="f-rel" placeholder="e.g. Son, Daughter, Wife">
+    </div>
+    <div class="form-group">
+      <label>Nickname</label>
+      <input type="text" id="f-nick" placeholder="e.g. Madhu, Pinky, Ravi">
     </div>
     <div class="form-group">
       <label>Birthday</label>
@@ -207,6 +213,13 @@
     <div class="form-group">
       <label>Notes</label>
       <input type="text" id="f-notes" placeholder="e.g. Lives in Bangalore">
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="f-alive">
+        <option value="true">✓ Alive</option>
+        <option value="false">✝ Deceased</option>
+      </select>
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="hideAddModal()">Cancel</button>
@@ -438,8 +451,8 @@ function renderRadial(root, w, h, linksGroup, nodesGroup, zoom, svg) {
 
   node.append('circle')
     .attr('r', d => d.data.name === 'Sreenivas Raman' ? 14 : 10)
-    .attr('fill', d => getColor(d.data.side))
-    .attr('fill-opacity', d => d.data.name === 'Sreenivas Raman' ? 1 : 0.75)
+    .attr('fill', d => d.data.is_alive === false ? '#555' : getColor(d.data.side))
+    .attr('fill-opacity', d => d.data.name === 'Sreenivas Raman' ? 1 : (d.data.is_alive === false ? 0.45 : 0.75))
     .attr('stroke', d => getColor(d.data.side))
     .attr('stroke-opacity', 0.4);
 
@@ -477,8 +490,8 @@ function renderTopDown(root, w, h, linksGroup, nodesGroup, zoom, svg) {
 
   node.append('circle')
     .attr('r', d => d.data.name === 'Sreenivas Raman' ? 14 : 10)
-    .attr('fill', d => getColor(d.data.side))
-    .attr('fill-opacity', d => d.data.name === 'Sreenivas Raman' ? 1 : 0.75)
+    .attr('fill', d => d.data.is_alive === false ? '#555' : getColor(d.data.side))
+    .attr('fill-opacity', d => d.data.name === 'Sreenivas Raman' ? 1 : (d.data.is_alive === false ? 0.45 : 0.75))
     .attr('stroke', d => getColor(d.data.side))
     .attr('stroke-opacity', 0.4);
 
@@ -517,12 +530,15 @@ function showDetail(person) {
 
   document.getElementById('detail-name').textContent = person.name;
   document.getElementById('detail-rel').textContent = person.relationship || '';
+  document.getElementById('detail-nick').textContent = person.nickname || '—';
 
   const bday = person.birthday ? new Date(person.birthday).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
   document.getElementById('detail-bday').textContent = bday;
 
   const sides = { bettadapura: 'Bettadapura', thangli: 'Thangli', banerjee: 'Banerjee', both: 'Both / Core' };
   document.getElementById('detail-side').textContent = sides[person.side] || person.side || '—';
+  document.getElementById('detail-alive').textContent = person.is_alive === false ? '✝ Deceased' : '✓ Alive';
+  document.getElementById('detail-alive').style.color = person.is_alive === false ? '#e05c6e' : '#4caf7d';
   document.getElementById('detail-notes').textContent = person.notes || '—';
 
   panel.classList.add('show');
@@ -580,10 +596,12 @@ async function savePerson() {
   const person = {
     name,
     relationship: document.getElementById('f-rel').value.trim(),
+    nickname: document.getElementById('f-nick').value.trim() || null,
     birthday: document.getElementById('f-bday').value || null,
     side: document.getElementById('f-side').value,
     parent_id: document.getElementById('f-parent').value || null,
     notes: document.getElementById('f-notes').value.trim(),
+    is_alive: document.getElementById('f-alive').value === 'true',
   };
 
   const { data, error } = await supabase.from('people').insert([person]).select();
@@ -596,7 +614,7 @@ async function savePerson() {
   hideAddModal();
 
   // Clear form
-  ['f-name','f-rel','f-bday','f-notes'].forEach(id => document.getElementById(id).value = '');
+  ['f-name','f-rel','f-nick','f-bday','f-notes'].forEach(id => document.getElementById(id).value = '');
 }
 
 
