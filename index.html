@@ -150,6 +150,7 @@
       <g id="nodes-group"></g>
     </g>
   </svg>
+  <div id="outline-view" style="display:none; padding:1.5rem 2rem; overflow-y:auto; height:100%;"></div>
 </div>
 
 <div class="legend">
@@ -477,75 +478,100 @@ function renderRadial(root, w, h, linksGroup, nodesGroup, zoom, svg) {
 }
 
 function renderTopDown(root, w, h, linksGroup, nodesGroup, zoom, svg) {
-  // Vertical tree: root at top, generations flow DOWNWARD
-  // Nodes spread left-right per generation, scroll is top-to-bottom
-  const treeLayout = d3.tree().nodeSize([28, 180]);
-  const hier = d3.hierarchy(root);
-  treeLayout(hier);
+  // Show outline view, hide SVG
+  document.getElementById('tree-svg').style.display = 'none';
+  const outline = document.getElementById('outline-view');
+  outline.style.display = 'block';
 
-  // d3 tree: x = horizontal spread, y = depth
-  // We want: x stays horizontal, y stays vertical — this is already correct!
-  // Just center it horizontally and start from top
-
-  let minX = Infinity, maxX = -Infinity;
-  hier.each(d => {
-    if (d.x < minX) minX = d.x;
-    if (d.x > maxX) maxX = d.x;
+  const map = {};
+  allPeople.forEach(p => map[p.id] = {...p, children: []});
+  const roots = [];
+  allPeople.forEach(p => {
+    if (p.parent_id && map[p.parent_id]) map[p.parent_id].children.push(map[p.id]);
+    else if (!p.parent_id) roots.push(map[p.id]);
   });
 
-  const treeW = maxX - minX;
-  const startX = w / 2 - treeW / 2 - minX;
+  const COLORS = { bettadapura:'#e6a84c', thangli:'#e05c6e', banerjee:'#7eb8d4', both:'#a78bfa' };
 
-  svg.call(zoom.transform, d3.zoomIdentity.translate(startX, 80).scale(1));
+  function renderNode(person, depth) {
+    const color = COLORS[person.side] || '#888';
+    const indent = depth * 24;
+    const isMe = person.name === 'Sreenivas Raman';
+    const deceased = person.is_alive === false;
 
-  // Curved links flowing top to bottom
-  linksGroup.selectAll('path').data(hier.links()).join('path')
-    .attr('class', 'link')
-    .attr('d', d => {
-      const sx = d.source.x, sy = d.source.y;
-      const tx = d.target.x, ty = d.target.y;
-      const my = (sy + ty) / 2;
-      return `M${sx},${sy} C${sx},${my} ${tx},${my} ${tx},${ty}`;
-    })
-    .attr('stroke', d => getColor(d.target.data.side))
-    .attr('stroke-width', 1);
+    const div = document.createElement('div');
+    div.style.cssText = `display:flex; align-items:center; gap:8px; padding:4px 0 4px ${indent}px; cursor:pointer; border-radius:6px; transition:background 0.15s;`;
+    div.onmouseenter = () => div.style.background = 'rgba(255,255,255,0.05)';
+    div.onmouseleave = () => div.style.background = 'transparent';
+    div.onclick = () => showDetail(person);
 
-  const node = nodesGroup.selectAll('g').data(hier.descendants()).join('g')
-    .attr('class', 'node')
-    .attr('transform', d => `translate(${d.x},${d.y})`)
-    .on('click', (e, d) => showDetail(d.data));
+    // Tree line indicator
+    if (depth > 0) {
+      const line = document.createElement('span');
+      line.style.cssText = `flex-shrink:0; width:${Math.min(depth,1)*16}px; height:1px; background:${color}; opacity:0.3;`;
+      div.appendChild(line);
+    }
 
-  node.append('circle')
-    .attr('r', d => d.data.name === 'Sreenivas Raman' ? 10 : 7)
-    .attr('fill', d => d.data.is_alive === false ? '#555' : getColor(d.data.side))
-    .attr('fill-opacity', d => d.data.name === 'Sreenivas Raman' ? 1 : (d.data.is_alive === false ? 0.45 : 0.75))
-    .attr('stroke', d => getColor(d.data.side))
-    .attr('stroke-opacity', 0.4);
+    // Dot
+    const dot = document.createElement('span');
+    dot.style.cssText = `width:${isMe?12:8}px; height:${isMe?12:8}px; border-radius:50%; background:${deceased?'#555':color}; flex-shrink:0; opacity:${deceased?0.4:0.85};`;
+    div.appendChild(dot);
 
-  // Name to the right of the node
-  node.append('text')
-    .attr('dx', 12)
-    .attr('dy', '0.35em')
-    .attr('text-anchor', 'start')
-    .text(d => d.data.name === 'virtual-root' ? '' : d.data.name.split(' ')[0])
-    .attr('font-size', '11px')
-    .attr('fill', '#e8e2d6');
+    // Name
+    const nameEl = document.createElement('span');
+    nameEl.style.cssText = `font-size:${isMe?'13px':'12px'}; font-weight:${isMe?'500':'400'}; color:${deceased?'rgba(232,226,214,0.35)':'#e8e2d6'}; text-decoration:${deceased?'line-through':'none'};`;
+    nameEl.textContent = person.name;
+    div.appendChild(nameEl);
 
-  // Relationship below name
-  node.append('text')
-    .attr('dx', 12)
-    .attr('dy', '1.5em')
-    .attr('text-anchor', 'start')
-    .attr('class', 'role')
-    .text(d => d.data.name === 'virtual-root' ? '' : (d.data.relationship || ''))
-    .attr('font-size', '9px')
-    .attr('fill', 'rgba(232,226,214,0.45)');
+    // Relationship badge
+    if (person.relationship) {
+      const badge = document.createElement('span');
+      badge.style.cssText = `font-size:10px; color:rgba(232,226,214,0.35); flex-shrink:0;`;
+      badge.textContent = person.relationship;
+      div.appendChild(badge);
+    }
+
+    // Nickname
+    if (person.nickname) {
+      const nick = document.createElement('span');
+      nick.style.cssText = `font-size:10px; color:${color}; opacity:0.7; flex-shrink:0;`;
+      nick.textContent = `(${person.nickname})`;
+      div.appendChild(nick);
+    }
+
+    return div;
+  }
+
+  function buildOutline(people, depth) {
+    const frag = document.createDocumentFragment();
+    people.forEach(person => {
+      frag.appendChild(renderNode(person, depth));
+      if (person.children && person.children.length > 0) {
+        frag.appendChild(buildOutline(person.children, depth + 1));
+      }
+    });
+    return frag;
+  }
+
+  outline.innerHTML = '';
+
+  // Add a title
+  const title = document.createElement('div');
+  title.style.cssText = 'font-family:"Cormorant Garamond",serif; font-size:1.4rem; color:#c9a84c; margin-bottom:1.5rem; font-weight:300; letter-spacing:0.05em;';
+  title.textContent = 'Bettadapura Thangli Family Tree';
+  outline.appendChild(title);
+
+  outline.appendChild(buildOutline(roots, 0));
 }
-
 function setView(view) {
   currentView = view;
   document.getElementById('btn-radial').classList.toggle('active', view === 'radial');
   document.getElementById('btn-tree').classList.toggle('active', view === 'tree');
+  // Show SVG for radial, outline div for tree
+  if (view === 'radial') {
+    document.getElementById('tree-svg').style.display = 'block';
+    document.getElementById('outline-view').style.display = 'none';
+  }
   renderTree();
 }
 
