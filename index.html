@@ -477,21 +477,38 @@ function renderRadial(root, w, h, linksGroup, nodesGroup, zoom, svg) {
 }
 
 function renderTopDown(root, w, h, linksGroup, nodesGroup, zoom, svg) {
-  const treeLayout = d3.tree().nodeSize([120, 90]);
+  // Vertical tree: root at top, generations flow DOWNWARD
+  // Nodes spread left-right per generation, scroll is top-to-bottom
+  const treeLayout = d3.tree().nodeSize([28, 180]);
   const hier = d3.hierarchy(root);
   treeLayout(hier);
 
+  // d3 tree: x = horizontal spread, y = depth
+  // We want: x stays horizontal, y stays vertical — this is already correct!
+  // Just center it horizontally and start from top
+
   let minX = Infinity, maxX = -Infinity;
-  hier.each(d => { if (d.x < minX) minX = d.x; if (d.x > maxX) maxX = d.x; });
+  hier.each(d => {
+    if (d.x < minX) minX = d.x;
+    if (d.x > maxX) maxX = d.x;
+  });
+
   const treeW = maxX - minX;
+  const startX = w / 2 - treeW / 2 - minX;
 
-  svg.call(zoom.transform, d3.zoomIdentity.translate(w / 2 - treeW / 2 - minX, 80).scale(0.7));
+  svg.call(zoom.transform, d3.zoomIdentity.translate(startX, 80).scale(1));
 
+  // Curved links flowing top to bottom
   linksGroup.selectAll('path').data(hier.links()).join('path')
     .attr('class', 'link')
-    .attr('d', d => `M${d.source.x},${d.source.y} C${d.source.x},${(d.source.y + d.target.y) / 2} ${d.target.x},${(d.source.y + d.target.y) / 2} ${d.target.x},${d.target.y}`)
+    .attr('d', d => {
+      const sx = d.source.x, sy = d.source.y;
+      const tx = d.target.x, ty = d.target.y;
+      const my = (sy + ty) / 2;
+      return `M${sx},${sy} C${sx},${my} ${tx},${my} ${tx},${ty}`;
+    })
     .attr('stroke', d => getColor(d.target.data.side))
-    .attr('stroke-width', 1.2);
+    .attr('stroke-width', 1);
 
   const node = nodesGroup.selectAll('g').data(hier.descendants()).join('g')
     .attr('class', 'node')
@@ -499,24 +516,28 @@ function renderTopDown(root, w, h, linksGroup, nodesGroup, zoom, svg) {
     .on('click', (e, d) => showDetail(d.data));
 
   node.append('circle')
-    .attr('r', d => d.data.name === 'Sreenivas Raman' ? 14 : 10)
+    .attr('r', d => d.data.name === 'Sreenivas Raman' ? 10 : 7)
     .attr('fill', d => d.data.is_alive === false ? '#555' : getColor(d.data.side))
     .attr('fill-opacity', d => d.data.name === 'Sreenivas Raman' ? 1 : (d.data.is_alive === false ? 0.45 : 0.75))
     .attr('stroke', d => getColor(d.data.side))
     .attr('stroke-opacity', 0.4);
 
+  // Name to the right of the node
   node.append('text')
-    .attr('dy', 26)
-    .attr('text-anchor', 'middle')
+    .attr('dx', 12)
+    .attr('dy', '0.35em')
+    .attr('text-anchor', 'start')
     .text(d => d.data.name === 'virtual-root' ? '' : d.data.name.split(' ')[0])
     .attr('font-size', '11px')
     .attr('fill', '#e8e2d6');
 
+  // Relationship below name
   node.append('text')
-    .attr('dy', 38)
-    .attr('text-anchor', 'middle')
+    .attr('dx', 12)
+    .attr('dy', '1.5em')
+    .attr('text-anchor', 'start')
     .attr('class', 'role')
-    .text(d => d.data.relationship || '')
+    .text(d => d.data.name === 'virtual-root' ? '' : (d.data.relationship || ''))
     .attr('font-size', '9px')
     .attr('fill', 'rgba(232,226,214,0.45)');
 }
