@@ -221,7 +221,6 @@
 <div class="legend">
   <div class="legend-item"><div class="legend-dot" style="background:var(--bettadapura)"></div>Bettadapura side</div>
   <div class="legend-item"><div class="legend-dot" style="background:var(--thangli)"></div>Thangli side</div>
-  <div class="legend-item"><div class="legend-dot" style="background:var(--banerjee)"></div>Banerjee side</div>
   <div class="legend-item"><div class="legend-dot" style="background:var(--self)"></div>You</div>
 </div>
 
@@ -370,143 +369,16 @@ let currentView = 'tree';
 let allPeople = [];
 let simulation;
 
-// Seed data from MindNode screenshots
-const SEED_DATA = [
-  // Core root
-  { name: 'Raman Bettadapura Venkataramaiah', relationship: 'Father', side: 'bettadapura', notes: 'Patriarch' },
-  { name: 'Saroja Thangli Venkatarao', relationship: 'Mother', side: 'thangli', notes: 'Matriarch' },
-  // Children
-  { name: 'Srikanta', relationship: 'Son 1', side: 'bettadapura' },
-  { name: 'Geetha Raman', relationship: 'Dau 2', side: 'bettadapura' },
-  { name: 'Sreenivas Raman', relationship: 'Son', side: 'both', notes: 'That\'s me! 🦾' },
-  // Sreenivas family
-  { name: 'Anwesha Banerjee', relationship: 'Wife (LOML)', side: 'banerjee' },
-  { name: 'Rocky', relationship: 'Our Pet 🐾', side: 'both' },
-  { name: 'Mia', relationship: 'Our Pet 🐾', side: 'both' },
-  // Banerjee side
-  { name: 'Amithabho Banerjee', relationship: 'Father-in-law', side: 'banerjee' },
-  { name: 'Sadhana', relationship: 'Mother-in-law', side: 'banerjee' },
-  { name: 'Aditi', relationship: 'Sister-in-law', side: 'banerjee' },
-  { name: 'Diganto', relationship: 'Brother-in-law', side: 'banerjee' },
-  // Geetha family
-  { name: 'Arun Kumar', relationship: 'Husband', side: 'bettadapura' },
-  { name: 'Saraswathi', relationship: 'Mother', side: 'bettadapura' },
-  { name: 'Ankith', relationship: 'Son 1', side: 'bettadapura' },
-  { name: 'Namith', relationship: 'Son 2', side: 'bettadapura' },
-  // Srikanta family
-  { name: 'Anuradha', relationship: 'Dau 2', side: 'bettadapura' },
-  { name: 'Lakshmi (Putti)', relationship: 'Dau 1', side: 'bettadapura' },
-  { name: 'Leelavathi', relationship: 'Dau 1, 2nd', side: 'bettadapura' },
-  // Father's side - siblings
-  { name: 'Kitta', relationship: 'Son 2', side: 'bettadapura' },
-  { name: 'Sathya', relationship: 'Sibling', side: 'bettadapura' },
-  { name: 'Janardhan', relationship: 'Son', side: 'bettadapura' },
-  // Mother's side
-  { name: 'Srinivas Murthy', relationship: 'Son 1, 1st', side: 'thangli' },
-  { name: 'Shardha', relationship: 'Dau 1, 2nd', side: 'thangli' },
-  { name: 'Nagaraj', relationship: 'Son 2, 4th', side: 'thangli' },
-  { name: 'Manjuneth', relationship: 'Son 3, 5th', side: 'thangli' },
-  { name: 'Madhavi (Madhu)', relationship: 'Dau 1', side: 'bettadapura' },
-];
+
 
 async function init() {
-  // Check if DB has data
   const { data, error } = await supabase.from('people').select('*');
   if (error) { console.error(error); }
-
-  if (!data || data.length === 0) {
-    // Seed the database
-    await seedDatabase();
-    const { data: seeded } = await supabase.from('people').select('*');
-    allPeople = seeded || [];
-  } else {
-    allPeople = data;
-  }
-
+  allPeople = data || [];
   populateParentDropdown();
   renderTree();
   renderBirthdays();
   document.getElementById('loading').style.display = 'none';
-}
-
-async function seedDatabase() {
-  // Insert root first
-  const { data: root } = await supabase.from('people').insert([
-    { name: 'Raman Bettadapura Venkataramaiah', relationship: 'Father', side: 'bettadapura', notes: 'Patriarch — Father of Sreenivas' },
-    { name: 'Saroja Thangli Venkatarao', relationship: 'Mother', side: 'thangli', notes: 'Matriarch — Mother of Sreenivas' },
-  ]).select();
-
-  if (!root) return;
-  const fatherId = root[0].id;
-  const motherId = root[1].id;
-
-  // Core children
-  const { data: children } = await supabase.from('people').insert([
-    { name: 'Srikanta', relationship: 'Son 1', side: 'bettadapura', parent_id: fatherId },
-    { name: 'Madhavi (Madhu)', relationship: 'Dau 1', side: 'bettadapura', parent_id: fatherId },
-    { name: 'Geetha Raman', relationship: 'Dau 2', side: 'bettadapura', parent_id: fatherId },
-    { name: 'Sreenivas Raman', relationship: 'Son', side: 'both', parent_id: fatherId, notes: "That's me! 🦾" },
-  ]).select();
-
-  if (!children) return;
-  const sreenivasId = children[3].id;
-  const geethaId = children[2].id;
-  const madhavid = children[1].id;
-
-  // Sreenivas family
-  const { data: srFamily } = await supabase.from('people').insert([
-    { name: 'Anwesha Banerjee', relationship: 'Wife (LOML)', side: 'banerjee', parent_id: sreenivasId },
-    { name: 'Rocky', relationship: 'Our Pet 🐾', side: 'both', parent_id: sreenivasId },
-    { name: 'Mia', relationship: 'Our Pet 🐾', side: 'both', parent_id: sreenivasId },
-  ]).select();
-
-  if (srFamily) {
-    const anweshaId = srFamily[0].id;
-    // Banerjee side
-    const { data: banerjees } = await supabase.from('people').insert([
-      { name: 'Amithabho Banerjee', relationship: 'Father-in-law', side: 'banerjee', parent_id: anweshaId },
-      { name: 'Sadhana', relationship: 'Mother-in-law', side: 'banerjee', parent_id: anweshaId },
-    ]).select();
-    if (banerjees) {
-      await supabase.from('people').insert([
-        { name: 'Aditi', relationship: 'Sister-in-law', side: 'banerjee', parent_id: banerjees[0].id },
-        { name: 'Diganto', relationship: 'Nephew', side: 'banerjee', parent_id: banerjees[0].id },
-      ]);
-    }
-  }
-
-  // Geetha family
-  const { data: gFamily } = await supabase.from('people').insert([
-    { name: 'Arun Kumar', relationship: 'Husband', side: 'bettadapura', parent_id: geethaId },
-  ]).select();
-  if (gFamily) {
-    await supabase.from('people').insert([
-      { name: 'Ankith', relationship: 'Son 1', side: 'bettadapura', parent_id: gFamily[0].id },
-      { name: 'Namith', relationship: 'Son 2', side: 'bettadapura', parent_id: gFamily[0].id },
-    ]);
-  }
-
-  // Madhavi family
-  const { data: mFamily } = await supabase.from('people').insert([
-    { name: 'Akash', relationship: 'Son 1', side: 'bettadapura', parent_id: madhavid },
-    { name: 'Shamitha', relationship: 'Dau 1', side: 'bettadapura', parent_id: madhavid },
-  ]).select();
-
-  // Mother's siblings
-  await supabase.from('people').insert([
-    { name: 'Srinivas Murthy', relationship: 'Son 1, 1st', side: 'thangli', parent_id: motherId },
-    { name: 'Shardha', relationship: 'Dau 1, 2nd', side: 'thangli', parent_id: motherId },
-    { name: 'Nagaraj', relationship: 'Son 2, 4th', side: 'thangli', parent_id: motherId },
-    { name: 'Manjuneth', relationship: 'Son 3, 5th', side: 'thangli', parent_id: motherId },
-    { name: 'Lalitha', relationship: 'Dau 3, 5th', side: 'thangli', parent_id: motherId },
-  ]);
-
-  // Father's siblings
-  await supabase.from('people').insert([
-    { name: 'Kitta', relationship: 'Son 2', side: 'bettadapura', parent_id: fatherId },
-    { name: 'Sathya', relationship: 'Sibling', side: 'bettadapura', parent_id: fatherId },
-    { name: 'Janardhan', relationship: 'Son', side: 'bettadapura', parent_id: fatherId },
-  ]);
 }
 
 function getColor(side) {
