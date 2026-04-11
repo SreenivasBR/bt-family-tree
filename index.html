@@ -478,90 +478,68 @@ function renderRadial(root, w, h, linksGroup, nodesGroup, zoom, svg) {
 }
 
 function renderTopDown(root, w, h, linksGroup, nodesGroup, zoom, svg) {
-  // Show outline view, hide SVG
-  document.getElementById('tree-svg').style.display = 'none';
-  const outline = document.getElementById('outline-view');
-  outline.style.display = 'block';
+  // Hide outline, show SVG
+  document.getElementById('tree-svg').style.display = 'block';
+  document.getElementById('outline-view').style.display = 'none';
 
-  const map = {};
-  allPeople.forEach(p => map[p.id] = {...p, children: []});
-  const roots = [];
-  allPeople.forEach(p => {
-    if (p.parent_id && map[p.parent_id]) map[p.parent_id].children.push(map[p.id]);
-    else if (!p.parent_id) roots.push(map[p.id]);
+  // Horizontal layout: root LEFT, branches spread RIGHT
+  // d3.tree() by default: x=breadth(vertical), y=depth(horizontal)
+  // nodeSize([vertical gap between siblings, horizontal gap between generations])
+  const treeLayout = d3.tree().nodeSize([22, 220]);
+  const hier = d3.hierarchy(root);
+  treeLayout(hier);
+
+  // Center vertically, start from left
+  let minX = Infinity, maxX = -Infinity;
+  hier.each(d => {
+    if (d.x < minX) minX = d.x;
+    if (d.x > maxX) maxX = d.x;
   });
+  const treeH = maxX - minX;
+  const offsetY = h / 2 - treeH / 2 - minX;
+  const offsetX = 60;
 
-  const COLORS = { bettadapura:'#e6a84c', thangli:'#e05c6e', banerjee:'#7eb8d4', both:'#a78bfa' };
+  svg.call(zoom.transform, d3.zoomIdentity.translate(offsetX, offsetY).scale(1));
 
-  function renderNode(person, depth) {
-    const color = COLORS[person.side] || '#888';
-    const indent = depth * 24;
-    const isMe = person.name === 'Sreenivas Raman';
-    const deceased = person.is_alive === false;
+  // Curved links: source.y = horizontal (depth), source.x = vertical (breadth)
+  linksGroup.selectAll('path').data(hier.links()).join('path')
+    .attr('class', 'link')
+    .attr('d', d => {
+      const sx = d.source.y, sy = d.source.x;
+      const tx = d.target.y, ty = d.target.x;
+      const mx = (sx + tx) / 2;
+      return `M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`;
+    })
+    .attr('stroke', d => getColor(d.target.data.side))
+    .attr('stroke-width', 1.2)
+    .attr('opacity', 0.5);
 
-    const div = document.createElement('div');
-    div.style.cssText = `display:flex; align-items:center; gap:8px; padding:4px 0 4px ${indent}px; cursor:pointer; border-radius:6px; transition:background 0.15s;`;
-    div.onmouseenter = () => div.style.background = 'rgba(255,255,255,0.05)';
-    div.onmouseleave = () => div.style.background = 'transparent';
-    div.onclick = () => showDetail(person);
+  const node = nodesGroup.selectAll('g').data(hier.descendants()).join('g')
+    .attr('class', 'node')
+    .attr('transform', d => `translate(${d.y},${d.x})`)
+    .on('click', (e, d) => showDetail(d.data));
 
-    // Tree line indicator
-    if (depth > 0) {
-      const line = document.createElement('span');
-      line.style.cssText = `flex-shrink:0; width:${Math.min(depth,1)*16}px; height:1px; background:${color}; opacity:0.3;`;
-      div.appendChild(line);
-    }
+  // Small dot
+  node.append('circle')
+    .attr('r', d => d.data.name === 'Sreenivas Raman' ? 6 : 4)
+    .attr('fill', d => d.data.is_alive === false ? '#555' : getColor(d.data.side))
+    .attr('fill-opacity', d => d.data.is_alive === false ? 0.4 : 0.9)
+    .attr('stroke', 'none');
 
-    // Dot
-    const dot = document.createElement('span');
-    dot.style.cssText = `width:${isMe?12:8}px; height:${isMe?12:8}px; border-radius:50%; background:${deceased?'#555':color}; flex-shrink:0; opacity:${deceased?0.4:0.85};`;
-    div.appendChild(dot);
-
-    // Name
-    const nameEl = document.createElement('span');
-    nameEl.style.cssText = `font-size:${isMe?'13px':'12px'}; font-weight:${isMe?'500':'400'}; color:${deceased?'rgba(232,226,214,0.35)':'#e8e2d6'}; text-decoration:${deceased?'line-through':'none'};`;
-    nameEl.textContent = person.name;
-    div.appendChild(nameEl);
-
-    // Relationship badge
-    if (person.relationship) {
-      const badge = document.createElement('span');
-      badge.style.cssText = `font-size:10px; color:rgba(232,226,214,0.35); flex-shrink:0;`;
-      badge.textContent = person.relationship;
-      div.appendChild(badge);
-    }
-
-    // Nickname
-    if (person.nickname) {
-      const nick = document.createElement('span');
-      nick.style.cssText = `font-size:10px; color:${color}; opacity:0.7; flex-shrink:0;`;
-      nick.textContent = `(${person.nickname})`;
-      div.appendChild(nick);
-    }
-
-    return div;
-  }
-
-  function buildOutline(people, depth) {
-    const frag = document.createDocumentFragment();
-    people.forEach(person => {
-      frag.appendChild(renderNode(person, depth));
-      if (person.children && person.children.length > 0) {
-        frag.appendChild(buildOutline(person.children, depth + 1));
-      }
-    });
-    return frag;
-  }
-
-  outline.innerHTML = '';
-
-  // Add a title
-  const title = document.createElement('div');
-  title.style.cssText = 'font-family:"Cormorant Garamond",serif; font-size:1.4rem; color:#c9a84c; margin-bottom:1.5rem; font-weight:300; letter-spacing:0.05em;';
-  title.textContent = 'Bettadapura Thangli Family Tree';
-  outline.appendChild(title);
-
-  outline.appendChild(buildOutline(roots, 0));
+  // Name label to the RIGHT of the dot
+  node.append('text')
+    .attr('dx', 10)
+    .attr('dy', '0.32em')
+    .attr('text-anchor', 'start')
+    .text(d => {
+      if (d.data.name === 'virtual-root' || d.data.name === 'Family') return '';
+      const nick = d.data.nickname ? ` (${d.data.nickname})` : '';
+      const rel = d.data.relationship ? ` · ${d.data.relationship}` : '';
+      return d.data.name + nick + rel;
+    })
+    .attr('font-size', d => d.data.name === 'Sreenivas Raman' ? '13px' : '12px')
+    .attr('font-weight', d => d.data.name === 'Sreenivas Raman' ? '500' : '400')
+    .attr('fill', d => d.data.is_alive === false ? 'rgba(232,226,214,0.3)' : '#e8e2d6');
 }
 function setView(view) {
   currentView = view;
