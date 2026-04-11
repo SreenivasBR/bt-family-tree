@@ -594,9 +594,16 @@ function renderRadial(root, w, h, linksGroup, nodesGroup, zoom, svg) {
     .attr('x', d => d.x < Math.PI === !d.children ? 16 : -16)
     .attr('text-anchor', d => d.x < Math.PI === !d.children ? 'start' : 'end')
     .attr('transform', d => d.x >= Math.PI ? 'rotate(180)' : null)
-    .text(d => d.data.name === 'virtual-root' ? '' : d.data.name.split(' ')[0])
+    .text(d => {
+      if (d.data.name === 'virtual-root') return '';
+      const placeholders = ['Son','Daughter','Husband','Wife','Father','Mother','Brother','Sister'];
+      return placeholders.includes(d.data.name) ? '?' : d.data.name.split(' ')[0];
+    })
     .attr('font-size', '11px')
-    .attr('fill', '#e8e2d6');
+    .attr('fill', d => {
+      const placeholders = ['Son','Daughter','Husband','Wife','Father','Mother','Brother','Sister'];
+      return placeholders.includes(d.data.name) ? 'rgba(232,226,214,0.3)' : '#e8e2d6';
+    });
 }
 
 function renderTopDown(root, w, h, linksGroup, nodesGroup, zoom, svg) {
@@ -674,13 +681,24 @@ function renderTopDown(root, w, h, linksGroup, nodesGroup, zoom, svg) {
     .attr('text-anchor', 'start')
     .text(d => {
       if (d.data.name === 'virtual-root' || d.data.name === 'Family') return '';
-      const nick = d.data.nickname ? ` (${d.data.nickname})` : '';
+      const placeholders = ['Son','Daughter','Husband','Wife','Father','Mother','Brother','Sister'];
+      const isUnknown = placeholders.includes(d.data.name);
+      const displayName = isUnknown ? '? Unknown' : d.data.name;
+      const nick = (!isUnknown && d.data.nickname) ? ` (${d.data.nickname})` : '';
       const rel = d.data.relationship ? ` · ${d.data.relationship}` : '';
-      return d.data.name + nick + rel;
+      return displayName + nick + rel;
     })
     .attr('font-size', d => d.data.name === 'Sreenivas Raman' ? '13px' : '12px')
     .attr('font-weight', d => d.data.name === 'Sreenivas Raman' ? '500' : '400')
-    .attr('fill', d => d.data.is_alive === false ? 'rgba(232,226,214,0.3)' : '#e8e2d6')
+    .attr('fill', d => {
+      const placeholders = ['Son','Daughter','Husband','Wife','Father','Mother','Brother','Sister'];
+      if (placeholders.includes(d.data.name)) return 'rgba(232,226,214,0.25)';
+      return d.data.is_alive === false ? 'rgba(232,226,214,0.3)' : '#e8e2d6';
+    })
+    .attr('font-style', d => {
+      const placeholders = ['Son','Daughter','Husband','Wife','Father','Mother','Brother','Sister'];
+      return placeholders.includes(d.data.name) ? 'italic' : 'normal';
+    })
     .style('transition', 'fill 0.15s');
 }
 function setView(view) {
@@ -706,12 +724,20 @@ function showDetail(person) {
   document.getElementById('detail-avatar').style.color = color;
   document.getElementById('detail-avatar').textContent = getInitials(person.name);
 
-  document.getElementById('detail-name').textContent = person.name;
+  const placeholderNames = ['Son','Daughter','Husband','Wife','Father','Mother','Brother','Sister'];
+  const isUnknownPerson = placeholderNames.includes(person.name);
+  document.getElementById('detail-name').textContent = isUnknownPerson ? '? Unknown Person' : person.name;
   document.getElementById('detail-rel').textContent = person.relationship || '';
   document.getElementById('detail-nick').textContent = person.nickname || '—';
 
-  const bday = person.birthday ? new Date(person.birthday).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
-  document.getElementById('detail-bday').textContent = bday;
+  let bdayText = '—';
+  if (person.birthday) {
+    // Parse as local date to avoid UTC timezone shift
+    const parts = person.birthday.split('-');
+    const bd = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    bdayText = bd.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  }
+  document.getElementById('detail-bday').textContent = bdayText;
 
   const sides = { bettadapura: 'Bettadapura', thangli: 'Thangli', banerjee: 'Banerjee', both: 'Both / Core' };
   document.getElementById('detail-side').textContent = sides[person.side] || person.side || '—';
@@ -733,7 +759,8 @@ function renderBirthdays() {
   const upcoming = allPeople
     .filter(p => p.birthday)
     .map(p => {
-      const bday = new Date(p.birthday);
+      const bparts = p.birthday.split('-');
+      const bday = new Date(parseInt(bparts[0]), parseInt(bparts[1]) - 1, parseInt(bparts[2]));
       const next = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
       if (next < today) next.setFullYear(today.getFullYear() + 1);
       const days = Math.ceil((next - today) / (1000 * 60 * 60 * 24));
@@ -747,12 +774,15 @@ function renderBirthdays() {
     list.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;">Add birthdays to see them here</div>';
     return;
   }
-  list.innerHTML = upcoming.map(p => `
-    <div class="bday-item">
-      <span>${p.name.split(' ')[0]}</span>
+  list.innerHTML = upcoming.map(p => {
+    const bparts = p.birthday.split('-');
+    const bd = new Date(parseInt(bparts[0]), parseInt(bparts[1]) - 1, parseInt(bparts[2]));
+    const bdStr = bd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `<div class="bday-item">
+      <span>${p.name.split(' ')[0]} <span style="font-size:0.72rem;opacity:0.6">${bdStr}</span></span>
       <span class="bday-days">${p.daysUntil === 0 ? '🎉 Today!' : `${p.daysUntil}d`}</span>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function populateParentDropdown() {
