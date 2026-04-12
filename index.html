@@ -242,7 +242,10 @@
   <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value" id="detail-contact">—</span></div>
   <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value" id="detail-email">—</span></div>
   <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" id="detail-notes">—</span></div>
-  <button class="btn-edit" id="btn-edit" onclick="showEditModal()">✏️ Edit</button>
+  <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+    <button class="btn-edit" id="btn-edit" onclick="showEditModal()" style="flex:1;">✏️ Edit</button>
+    <button class="btn-edit" id="btn-add-under" onclick="showAddUnderModal()" style="flex:1; background:rgba(92,184,92,0.1); color:#4caf7d; border-color:rgba(76,175,61,0.3);">+ Add</button>
+  </div>
 </div>
 
 <!-- Edit Person Modal -->
@@ -304,7 +307,8 @@
 <!-- Add Person Modal -->
 <div class="modal-overlay" id="add-modal">
   <div class="modal">
-    <h2>Add Family Member</h2>
+    <h2 id="add-modal-title">Add Family Member</h2>
+    <div id="f-parent-display" style="display:none; background:rgba(76,175,61,0.08); border:0.5px solid rgba(76,175,61,0.25); border-radius:8px; padding:0.5rem 0.75rem; font-size:0.82rem; color:#4caf7d; margin-bottom:1rem;"></div>
     <div class="form-group">
       <label>Full Name</label>
       <input type="text" id="f-name" placeholder="e.g. Sreenivas Raman">
@@ -668,8 +672,38 @@ function populateParentDropdown() {
   });
 }
 
-function showAddModal() { document.getElementById('add-modal').classList.add('show'); }
-function hideAddModal() { document.getElementById('add-modal').classList.remove('show'); }
+function showAddModal() {
+  // Clear parent field for fresh add
+  document.getElementById('f-parent').value = '';
+  document.getElementById('add-modal-title').textContent = 'Add Family Member';
+  document.getElementById('f-parent-display').style.display = 'none';
+  document.getElementById('f-parent').parentElement.style.display = 'block';
+  document.getElementById('add-modal').classList.add('show');
+}
+
+function showAddUnderModal() {
+  const p = currentEditPerson;
+  if (!p) return;
+  // Pre-select the current person as parent
+  document.getElementById('f-parent').value = p.id;
+  document.getElementById('add-modal-title').textContent = 'Add Member';
+  // Show a nice label instead of the dropdown
+  document.getElementById('f-parent-display').textContent = `Connected to: ${p.name}`;
+  document.getElementById('f-parent-display').style.display = 'block';
+  document.getElementById('f-parent').parentElement.style.display = 'none';
+  // Pre-fill same side as parent
+  document.getElementById('f-side').value = p.side || 'bettadapura';
+  document.getElementById('add-modal').classList.add('show');
+  closeDetail();
+}
+
+function hideAddModal() {
+  document.getElementById('add-modal').classList.remove('show');
+  // Reset modal to default state
+  document.getElementById('f-parent-display').style.display = 'none';
+  document.getElementById('f-parent').parentElement.style.display = 'block';
+  document.getElementById('add-modal-title').textContent = 'Add Family Member';
+}
 
 async function savePerson() {
   const name = document.getElementById('f-name').value.trim();
